@@ -1,0 +1,312 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "structo.aurora.core";
+option java_outer_classname = "AuroraCoreProto";
+option objc_class_prefix = "ACO";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+package auroracore;
+
+
+//TODO: 
+// global UI timeout for unary/stream responses
+// platform alignment renaming
+
+
+service CoreService {
+    rpc StreamActions(Empty) returns (stream StreamActionResponse) {}
+   
+    // PnP access to UI - DASHBOARD
+    rpc DoInitialization (Empty) returns (stream Response){}
+    rpc DoInitializationAndScanning (Empty) returns (stream DoInitializationAndScanningResponse){}
+    rpc ResetPnP (Empty) returns (Response){}
+    rpc CycleStop (Empty) returns (Response){}
+    rpc DoPickTask(Empty) returns (Response){}
+    rpc DoPlaceTask(Empty) returns (Response){}
+   
+    //JobQueue Page - Shared NY and SH
+    rpc SetFile(FileList) returns (stream Job) {} // server stream will close after complete validating all files in the list
+    rpc DeleteFile(DeleteFileRequest) returns (Response) {}
+    rpc StartPrint(Empty) returns (stream StartPrintResponseStream){}
+    rpc CancelSHPrint(CancelPrintRequest) returns (Response){} // SH printer
+    
+   
+    // printer maintenance and operation - shared NY and SH
+    rpc setMaintenanceMode(MaintenanceModeRequest) returns (Response){}  // UI to set this if any maintenance tasks are performed.
+    rpc DoRaisePlatform(Empty) returns (stream OperationPayload){} // Independent raise platform operation
+    rpc PlatformAlignment1(Empty) returns (stream OperationPayload){} // DoRaisePlatform for PA
+    rpc PlatformAlignment2(Empty) returns (stream OperationPayload){} // DoLowerPlatform for PA
+    rpc PlatformAlignment3(Empty) returns (stream OperationPayload){} // DoCalibration for PA
+    rpc DMIRaisePlatform(Empty) returns (stream OperationPayload){} // DoRaisePlatform for DMI (RAISING_PLATFORM_INIT, RAISING_PLATFORM_DONE, RAISING_PLATFORM_ERROR) 
+    rpc DMIMain(Empty) returns (stream OperationPayload){}  // Actual DMI (DMI_INIT, DMI_DONE, DMI_ERROR), show gif for 16 seconds, then show loading until core responds, on error, show blocking error modal for at least 15 seconds to cool down UV light    
+    rpc UngripPlate(Empty) returns (Response) {}   // Ungrip Plate 
+    rpc DoMagnetOff(Empty) returns (Response) {}    // Demag Plate 
+    rpc DoMagnetOn(Empty) returns (Response) {}      // mag Plate 
+    rpc DoDoorUnlock(Empty) returns (Response) {}      // Door Unlock
+    
+    
+    // print preference 
+    rpc getPrintingPreference(Empty) returns (PrintingPreferenceResponse){}  // It will also return list of default printing preferences
+    rpc setPrintingProfile(PrintingProfileRequest) returns (Response){}   // set printing profile
+    rpc getTFAInfo(Empty) returns (TfaStatusResponse){}
+    rpc getLCDInfo(Empty) returns (LcdStatusResponse){}
+    rpc setLayerErosion(LayerErosionRequest) returns (Response){} 
+    rpc getLayerErosion(Empty) returns (LayerErosionResponse){}
+
+   //NY  APIS
+    rpc systemShutDown(Empty) returns (Response) {}  // shutdown signal to firmware
+    rpc setUVDutyCycle(UVDuty) returns (Response) {}
+    rpc getUVDutyCycle(Empty) returns (Response) {}
+    rpc ButtonActionStream(Empty) returns (stream ButtonActionStreamResponse) {}  // separate stream for button 
+    rpc CancelPrint(CancelPrintRequest) returns (stream CancelPrintResponse){} // NY printer
+    rpc NYTankCleaningRaisePlatform(Empty) returns (stream OperationPayload){} // DoRaisePlatform for Tank Cleaning (RAISING_PLATFORM_INIT, RAISING_PLATFORM_DONE, RAISING_PLATFORM_ERROR),  default time is 30 seconds
+    rpc NYTankCleaningMain(TankCleaningRequest) returns (stream OperationPayload){}  // Actual Tank Cleaning (TANK_CLEANING_INIT, TANK_CLEANING_DONE, TANK_CLEANING_ERROR), duration: 0 will result in default duration. 
+    rpc CheckDoorStatus(Empty) returns (DoorStatus){}
+    rpc layerInspectionComplete(layerInspectionCompleteRequest) returns (Response){}
+
+  
+}
+
+message DoInitializationAndScanningResponse {
+    // enum EzplateRegisterStatus
+    // {	
+    //   UNKNOWN = 0;
+    //   SCANNING_HOMING_INIT = 1;
+    //   SCANNING_HOMING_BUSY = 2;
+    //   SCANNING_HOMING_DONE = 3;
+    //   SCANNING_BUSY = 4;
+    //   SCANNING_DONE = 5;
+    //   SCANNING_IDLE = 6;
+    //   SCANNING_ERROR = 10;
+    // }
+    string status = 11;
+}
+
+message MaintenanceModeRequest {
+  bool isMaintenanceMode = 1;
+}
+
+message TankCleaningRequest {
+  int32 duration = 1;
+}
+
+message CancelPrintRequest{
+  string jobid = 1;
+}
+
+message CancelPrintResponse{
+  string jobid = 1;
+  string status = 2; // CANCEL_PRINT_INIT, CANCEL_PRINT_DONE
+  string errorMessage = 3;
+}
+
+message DoorStatus {
+  bool isDoorOpen = 1;
+}
+
+message layerInspectionCompleteRequest {
+  bool cancelPrint = 1;
+}
+
+message OperationPayload {
+  string status = 1;
+  string errorMessage = 2;
+}
+
+message StartPrintJob {
+  string jobid = 1;
+  bool preheatResin = 2;
+  bool firstLayerInspection = 3;
+}
+
+message StartPrintRequestList { repeated StartPrintJob jobs = 1; }
+
+
+message StartPrintResponseStream {
+  string jobid = 1;
+  int32 currentPrintedLayer = 2;
+  string printStatus = 3;
+    // UNKNOWN
+    // PRINT_RUNNING
+    // PRINT_REMOVAL
+    // PICKING_INIT
+    // PICKING_BUSY
+    // PICKING_DONE
+    // PRINT_COMPLETED
+    // PRINT_FAILED
+  int32 availableEZPlate = 4;
+  int32 PrintedEZPlate = 5;
+  int32 jobsCompleted = 6;
+  int32 jobsRemaining = 7;
+  int32 plateId = 8; // only comes in after PRINT_STARTING
+}
+
+message Response {
+    bool success = 1;
+    int32 code = 2;
+    string message = 3;
+}
+
+message DeleteFileRequest{
+  string jobid = 1;
+}
+
+message ButtonActionStreamResponse {
+  enum Type {
+    BUTTON_ACTION = 0;
+  }
+  enum ButtonActionType
+  {
+    BUTTON_IDLE = 0;
+    START_BUTTON = 1;
+    STOP_BUTTON = 2;
+    ENTER_BUTTON = 3;
+    CANCEL_BUTTON = 4;
+    UP_BUTTON = 5;
+    DOWN_BUTTON = 6;
+    POWER_BUTTON = 7;
+  }
+  Type type = 1; 
+  ButtonActionType ButtonType = 2;
+}
+
+message StreamActionResponse{
+  enum Type {
+    HEARTBEAT = 0;
+    NEW_JOB = 1;
+    TFA_STATUS = 2;
+    LCD_STATUS = 3;
+    ERROR = 4;
+    RESIN_STATUS = 5;
+    PNP_SAFETY_STATUS = 6;
+  }
+  Type type = 1; 
+  HeartbeatStatusResponse heartbeatStatus = 2;
+  Job jobResponse = 3;
+  TfaStatusResponse tfaStatus = 4;
+  LcdStatusResponse lcdStatus = 5;
+  ErrorResponse errorResponse = 6;
+  PnpTankResinStatus resinTankStatus = 7;
+  PnpSafetyStatusResponse PnpSafetyStatus = 8;
+}
+
+message PnpTankResinStatus{
+	int32 InTankResinLevel = 1;
+	int32 OutTankResinLevel = 2;
+	google.protobuf.Timestamp lastUpdatedAt = 3;
+}
+
+message TfaStatusResponse {
+  string tfaId = 1; // if no ID, consider that no TFA installed
+  google.protobuf.Timestamp dateChanged = 2;
+  int32 printCount = 3;
+  int32 layerCount = 4; 
+  bool isChangeDetected = 5;
+}
+
+message LcdStatusResponse {
+  string lcdId = 1; // if no ID, consider that no LCD installed
+  google.protobuf.Timestamp dateChanged = 2;
+  int32 printCount = 3;
+  int32 layerCount = 4; 
+  bool isChangeDetected = 5;
+}
+
+message PnpSafetyStatusResponse{
+	bool DoorOpened = 1;
+	bool EStopTriggered = 2;
+	google.protobuf.Timestamp lastUpdatedAt = 3;
+}
+
+message HeartbeatStatusResponse {
+  enum Status{
+    ONLINE = 0;
+    MAINTENANCE = 1;
+    ERROR = 2;
+    UNKNOWN = 3;
+  }
+  google.protobuf.Timestamp updatedAt = 1;
+  bool isCoreConnected = 2; 
+  bool isFirmwareConnected = 3;
+  bool isPnpConnected = 4;
+  string printerName = 5;
+  bool isTucoConnected = 6;
+  bool isCloudConnected = 7;
+  Status printerStatus = 8;
+}
+
+message Job {
+    enum Status {
+      UNKNOWN = 0;
+      QUEUED = 1;
+      ACTIVE = 2;
+      FAILED = 3;
+    }
+    
+    string jobid = 1;
+    string name = 2;
+    int64 buildTime = 3;
+    uint32 totalLayers = 4;
+    google.protobuf.Timestamp createdAt = 5;
+    Status status = 6;
+    uint32 errorCode = 7;
+    string errorMessage = 8;
+    double volume = 9;
+    uint32 layerThickness = 10;
+    string validatedFolder = 11;
+    string uuid = 12; // this field is for UI to identify file. Aurora-core just return what receives.
+    int32 jobsInCycle = 13;
+    int64 cycleBuildTime = 14;
+    double estimatedResinConsumption = 15;
+}
+
+message ManyJobs { repeated Job jobs = 1; }
+
+message ErrorResponse {
+  string errorCode = 1;
+  string errorMsg = 2;
+}
+
+message File {
+    string name = 1;
+    string path = 2;
+    uint32 resolutionUM = 3;
+    string uuid = 4; // this field is for UI to identify file. Aurora-core just return what receives.
+}
+
+message FileList { repeated File files = 1; }
+
+message Empty {}
+
+message DefaultPrintingProfile {
+  string profileName = 1;
+  bool layerErosion = 2;
+}
+
+message PrintingPreferenceResponse {
+  repeated string profileList = 1;
+  DefaultPrintingProfile defaultValues = 2;
+}
+
+message PrintingProfileRequest {
+  string profileName = 1;
+}
+
+message LayerErosionRequest {
+  bool isEnabled = 1;
+  int32 layersToErode = 2;
+  int32 pixelsToErode = 3;
+}
+
+message LayerErosionResponse {
+  bool success = 1;
+  bool isEnabled = 2;
+  int32 layersToErode = 3;
+  int32 pixelsToErode = 4;
+}
+
+
+message UVDuty {
+  int32 dutyCycle = 1;
+}
